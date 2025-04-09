@@ -23,15 +23,15 @@ USERNAME="$(echo "${CREDS%:*}")"
 
 PROJECT_NAME="project123"
 VERSION_TAG="1.15.2"
-
+PROD_BUILD_PATH="./docker"
 
 if [[ -z "${1}" || -z "${2}" ]]; then
     echo "no project_name or version_tag specified!"
     echo "example usage: "
-    echo "${0} {project_name} {version_tag}"
-    echo "${0} project123 1.15.2"
-    echo "${0} project123 250409"
-    echo "${0} project123 20250409"
+    echo "${0} {project_name} {version_tag} [prod_build_path]"
+    echo "${0} project123 1.15.2 ./docker"
+    echo "${0} project123 250409 ./docker/prod"
+    echo "${0} project123 20250409 ./build/prod"
     echo ""
     echo "exiting..."
     exit 1
@@ -41,8 +41,17 @@ else
     echo "using: \`${2}\` as version_tag"
 fi
 
+if [[ -z "${3}" ]]; then
+        echo "warning! prod built path is empty!"
+else
+        echo "prod_build_path found!"
+fi
+echo "using \`${PROD_BUILD_PATH}\` as prod_build_path"
+
+
 PROJECT_NAME="${1:-"${PROJECT_NAME}"}"
 VERSION_TAG="${2:-"${ADDTION_TAG}"}"
+PROD_BUILD_PATH="${3:-"${PROD_BUILD_PATH}"}"
 BASE_TAG_NAME="${USERNAME}/${PROJECT_NAME}"
 RELATIVE_PATH="../${PROJECT_NAME}/"
 DOCKER_AUTH_URL="https://auth.docker.io/token?service=registry.docker.io&scope=repository:${USERNAME}/${PROJECT_NAME}:pull"
@@ -64,7 +73,7 @@ function build_prod(){
     docker build \
         -t "${BASE_TAG_NAME}:$VERSION_TAG" \
         -t "${BASE_TAG_NAME}:latest" \
-        ./docker/from-base/
+        "${PROD_BUILD_PATH}"
 }
 
 function push_prod(){
@@ -72,6 +81,9 @@ function push_prod(){
     docker push "${BASE_TAG_NAME}:latest"
 }
 
+function prune_build(){
+    docker builder prune -af
+}
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
@@ -83,7 +95,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 RES="$( curl -sH "Authorization: Basic ${CREDS_BASE64}" "${DOCKER_AUTH_URL}" | jq -r ".details" )"
-if [ -z "$RES"]; then
+if [ -z "$RES" ]; then
     echo "error whilst sending request to auth.docker.io"
     exit 1
 elif [ "$RES" != "null" ]; then
@@ -101,13 +113,14 @@ else
 fi
 
 
-if [ "basename $(pwd)" -ne "${PROJECT_NAME}" ]; then
+if [ "basename $(pwd)" != "${PROJECT_NAME}" ]; then
     cd ../${PROJECT_NAME}/
-else
-    echo "building and pushing base image for ${BASE_TAG_NAME}"
-    build_base && push_base
-
-    echo "building and pushing prod image for ${BASE_TAG_NAME}"
-    build_prod && push_prod
 fi
+
+echo "building and pushing base image for ${BASE_TAG_NAME}"
+build_base && push_base && prune_build
+
+echo "building and pushing prod image for ${BASE_TAG_NAME}"
+build_prod && push_prod && prune_build
+
 
