@@ -42,12 +42,12 @@ else
 fi
 
 if [[ -z "${3}" ]]; then
-        echo "warning! prod built path is empty!"
+    echo "warning! prod built path is empty!"
+    echo "using \`${PROD_BUILD_PATH}\` as prod_build_path"
 else
-        echo "prod_build_path found!"
+    echo "prod_build_path found!"
+    echo "using \`${3}\` as prod_build_path"
 fi
-echo "using \`${PROD_BUILD_PATH}\` as prod_build_path"
-
 
 PROJECT_NAME="${1:-"${PROJECT_NAME}"}"
 VERSION_TAG="${2:-"${ADDTION_TAG}"}"
@@ -82,7 +82,7 @@ function push_prod(){
 }
 
 function prune_build(){
-    docker builder prune -af
+                docker builder prune -af
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
